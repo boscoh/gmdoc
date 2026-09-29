@@ -5,7 +5,7 @@
 #     "cyclopts>=4.10.0",
 # ]
 # ///
-"""gdoc: pull/push Google Docs as Markdown via the Drive API.
+"""gmdoc: pull/push Google Docs as Markdown via the Drive API.
 
 Pull and push Google Docs as Markdown, using the Drive API's built-in
 `text/markdown` conversion.
@@ -15,50 +15,50 @@ Pull and push Google Docs as Markdown, using the Drive API's built-in
 ```sh
 brew install --cask gcloud-cli
 gcloud auth login --enable-gdrive-access   # browser login, click Allow
-uv tool install ~/p/gdoc
+uv tool install gmdoc
 ```
 
-Or skip installing: `gdoc.py` lists its own dependencies in the comment block at the
-top, so `uv run gdoc.py ...` or `./gdoc.py ...` works anywhere, even if you copy just
+Or skip installing: `gmdoc.py` lists its own dependencies in the comment block at the
+top, so `uv run gmdoc.py ...` or `./gmdoc.py ...` works anywhere, even if you copy just
 this file.
 
-`gdoc` borrows gcloud's access token, so you don't need a Google Cloud project. It talks
+`gmdoc` borrows gcloud's access token, so you don't need a Google Cloud project. It talks
 to the Drive REST API with the standard library, so its only dependency is `cyclopts`.
 
 If Drive complains that the API isn't enabled for the project, set
-`GDOC_QUOTA_PROJECT=<your-project-id>` (a project with the Drive API enabled).
+`GMDOC_QUOTA_PROJECT=<your-project-id>` (a project with the Drive API enabled).
 
 ## Usage
 
 ```sh
-gdoc ls [name]                    # list recent docs
-gdoc pull <doc-url|id> [out.md]   # download (default name: <title>.md)
-gdoc pull notes.md                # re-pull an already-linked file
-gdoc push notes.md                # upload edits (replaces the doc body)
-gdoc new draft.md -t "My Doc"     # create a new doc from markdown
-gdoc status [files...]            # in sync / local / remote / CONFLICT
-gdoc account [email] [--login]    # list/check/switch Google accounts
+gmdoc ls [name]                    # list recent docs
+gmdoc pull <doc-url|id> [out.md]   # download (default name: <title>.md)
+gmdoc pull notes.md                # re-pull an already-linked file
+gmdoc push notes.md                # upload edits (replaces the doc body)
+gmdoc new draft.md -t "My Doc"     # create a new doc from markdown
+gmdoc status [files...]            # in sync / local / remote / CONFLICT
+gmdoc account [email] [--login]    # list/check/switch Google accounts
 ```
 
 Each pulled file gets front matter linking it to the doc:
 
 ```yaml
 ---
-gdoc_id: 1AbC...
-gdoc_title: My Doc
-gdoc_modified: 2026-01-01T12:00:00.000Z
-gdoc_hash: 3f2a...
-gdoc_account: me@gmail.com
+gmdoc_id: 1AbC...
+gmdoc_title: My Doc
+gmdoc_modified: 2026-01-01T12:00:00.000Z
+gmdoc_hash: 3f2a...
+gmdoc_account: me@gmail.com
 ---
 ```
 
 ## Multiple accounts
 
-- `gdoc account` lists your gcloud accounts, marks the active one with `*`, and checks
+- `gmdoc account` lists your gcloud accounts, marks the active one with `*`, and checks
   that each can reach Drive.
-- `gdoc account other@gmail.com` switches to that account, logging in first if needed.
+- `gmdoc account other@gmail.com` switches to that account, logging in first if needed.
   Add `--login` to redo the login (fixes "no Drive access").
-- Each file remembers the account it was synced with (`gdoc_account`), and `pull`,
+- Each file remembers the account it was synced with (`gmdoc_account`), and `pull`,
   `push` and `status` use that account whichever one is active.
 - New docs and `ls` use the active account. `--account/-a <email>` overrides it on
   any command.
@@ -66,7 +66,7 @@ gdoc_account: me@gmail.com
 ## Safety checks
 
 - `push` refuses if the doc was edited in Google after your last sync. It detects this by
-  exporting the doc and comparing it to `gdoc_hash`, the hash of the text at last sync.
+  exporting the doc and comparing it to `gmdoc_hash`, the hash of the text at last sync.
 - `pull` refuses if the local file has unpushed edits.
 - `--force` skips both checks.
 
@@ -104,9 +104,9 @@ MD = "text/markdown"
 GDOC = "application/vnd.google-apps.document"
 FIELDS = "id,name,mimeType,modifiedTime"
 
-# Name to show in hints: "gdoc", or e.g. "b gdoc" when run as a bhtool subcommand.
+# Name to show in hints: "gmdoc", or e.g. "b gmdoc" when run as a bhtool subcommand.
 _argv0 = Path(sys.argv[0]).name
-PROG = f"{_argv0} gdoc" if _argv0 in ("b", "bhtool") else "gdoc"
+PROG = f"{_argv0} gmdoc" if _argv0 in ("b", "bhtool") else "gmdoc"
 LOGIN_HINT = PROG + " account {} --login"
 
 FM_RE = re.compile(r"\A---\n(.*?)\n---\n?", re.S)
@@ -137,7 +137,7 @@ class Drive:
     ) -> bytes:
         """Make a Drive REST call. On HTTP errors, exit (or raise HttpError if asked)."""
         headers = {"Authorization": f"Bearer {self.token}"}
-        if quota := os.environ.get("GDOC_QUOTA_PROJECT"):
+        if quota := os.environ.get("GMDOC_QUOTA_PROJECT"):
             headers["x-goog-user-project"] = quota
         if content_type:
             headers["Content-Type"] = content_type
@@ -199,7 +199,7 @@ class Drive:
 
     def create(self, meta: dict, text: str) -> dict:
         """Create a file from metadata + markdown content (multipart upload)."""
-        boundary = "gdoc-" + secrets.token_hex(16)
+        boundary = "gmdoc-" + secrets.token_hex(16)
         data = (
             f"--{boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n"
             f"{json.dumps(meta)}\r\n"
@@ -251,7 +251,7 @@ def gcloud_bin() -> str:
         if p.is_file() and os.access(p, os.X_OK):
             return str(p)
     die(
-        "gcloud is not installed. gdoc uses it to log in to Google.",
+        "gcloud is not installed. gmdoc uses it to log in to Google.",
         "Install it:",
         "  brew install --cask gcloud-cli",
         "  (other systems: https://cloud.google.com/sdk/docs/install)",
@@ -306,7 +306,7 @@ def parse(text: str) -> tuple[dict, str]:
         if ":" in line:
             k, v = line.split(":", 1)
             fm[k.strip()] = v.strip()
-    if "gdoc_id" not in fm:  # someone else's front matter; leave it in the body
+    if "gmdoc_id" not in fm:  # someone else's front matter; leave it in the body
         return {}, text
     return fm, text[m.end():]
 
@@ -322,13 +322,13 @@ def digest(body: str) -> str:
 
 def write_synced(path: Path, drive: Drive, info: dict, body: str) -> None:
     fm = {
-        "gdoc_id": info["id"],
-        "gdoc_title": info["name"],
-        "gdoc_modified": info["modifiedTime"],
-        "gdoc_hash": digest(body),
+        "gmdoc_id": info["id"],
+        "gmdoc_title": info["name"],
+        "gmdoc_modified": info["modifiedTime"],
+        "gmdoc_hash": digest(body),
     }
     if drive.account:
-        fm["gdoc_account"] = drive.account
+        fm["gmdoc_account"] = drive.account
     path.write_text(render(fm, body), encoding="utf-8")
 
 
@@ -392,7 +392,7 @@ def drive_ok(drive: Drive) -> str:
 Force = Annotated[bool, Parameter(name=["--force", "-f"], negative="")]
 Account = Annotated[str | None, Parameter(name=["--account", "-a"])]
 
-app = App(name="gdoc", help="Pull/push Google Docs as Markdown.", version_flags=[])
+app = App(name="gmdoc", help="Pull/push Google Docs as Markdown.", version_flags=[])
 
 
 @app.command
@@ -408,17 +408,17 @@ def pull(
     out
         Output file (default: the doc title, slugified, + .md).
     account
-        Google account (default: the file's gdoc_account, else gcloud's active account).
+        Google account (default: the file's gmdoc_account, else gcloud's active account).
     force
         Overwrite local changes.
     """
     path = None
     if looks_like_file(target):
         fm, _ = read(Path(target))
-        if "gdoc_id" not in fm:
-            die(f"{target} has no gdoc_id front matter.", "Pass a doc id or URL instead.")
-        doc_id = fm["gdoc_id"]
-        account = account or fm.get("gdoc_account")
+        if "gmdoc_id" not in fm:
+            die(f"{target} has no gmdoc_id front matter.", "Pass a doc id or URL instead.")
+        doc_id = fm["gmdoc_id"]
+        account = account or fm.get("gmdoc_account")
         path = out or Path(target)
     else:
         doc_id = doc_id_from(target)
@@ -429,12 +429,12 @@ def pull(
 
     if path.exists() and not force:
         fm, body = read(path)
-        if fm.get("gdoc_id") and fm["gdoc_id"] != doc_id:
+        if fm.get("gmdoc_id") and fm["gmdoc_id"] != doc_id:
             die(
-                f"{path} is linked to a different doc ({fm['gdoc_id']}).",
+                f"{path} is linked to a different doc ({fm['gmdoc_id']}).",
                 "Use --force to overwrite it.",
             )
-        if not fm or fm.get("gdoc_hash") != digest(body):
+        if not fm or fm.get("gmdoc_hash") != digest(body):
             die(
                 f"{path} has local changes that would be overwritten.",
                 "Push them first, or use --force to discard them.",
@@ -457,31 +457,31 @@ def push(
     doc
         Doc id/URL (default: from front matter).
     account
-        Google account (default: the file's gdoc_account, else gcloud's active account).
+        Google account (default: the file's gmdoc_account, else gcloud's active account).
     force
         Overwrite remote changes.
     """
     fm, body = read(file)
-    doc_id = doc_id_from(doc) if doc else fm.get("gdoc_id")
+    doc_id = doc_id_from(doc) if doc else fm.get("gmdoc_id")
     if not doc_id:
         die(
-            f"{file} has no gdoc_id front matter.",
+            f"{file} has no gmdoc_id front matter.",
             "Pass a doc id or URL, or create a new doc:",
             f"  {PROG} new {file}",
         )
 
-    drive = connect(account or fm.get("gdoc_account"))
+    drive = connect(account or fm.get("gmdoc_account"))
     info = drive.meta(doc_id)
     if not force:
-        if fm.get("gdoc_id") != doc_id:
+        if fm.get("gmdoc_id") != doc_id:
             die(
                 f"{file} was not pulled from this doc.",
                 "Pushing replaces the doc's whole body. Use --force to do it anyway.",
             )
-        if fm.get("gdoc_hash") == digest(body):
+        if fm.get("gmdoc_hash") == digest(body):
             print("no local changes; nothing to push")
             return
-        if digest(drive.export(doc_id)) != fm.get("gdoc_hash"):
+        if digest(drive.export(doc_id)) != fm.get("gmdoc_hash"):
             die(
                 f"'{info['name']}' was edited in Google Docs since your last sync.",
                 "Save your edits elsewhere and pull, or use --force to overwrite.",
@@ -518,9 +518,9 @@ def new(
         Create even if the file is already linked to a doc.
     """
     fm, body = read(file)
-    if fm.get("gdoc_id") and not force:
+    if fm.get("gmdoc_id") and not force:
         die(
-            f"{file} is already linked to {fm['gdoc_id']}.",
+            f"{file} is already linked to {fm['gmdoc_id']}.",
             f"Use `{PROG} push`, or --force to create another doc.",
         )
     body_meta: dict[str, object] = {"name": title or file.stem, "mimeType": GDOC}
@@ -544,11 +544,11 @@ def status(*files: Path) -> None:
     drives = Connections()
     for path in files or sorted(Path(".").glob("*.md")):
         fm, body = read(path)
-        if "gdoc_id" not in fm:
+        if "gmdoc_id" not in fm:
             continue
-        drive = drives[fm.get("gdoc_account")]
-        local = fm.get("gdoc_hash") != digest(body)
-        remote = fm.get("gdoc_hash") != digest(drive.export(fm["gdoc_id"]))
+        drive = drives[fm.get("gmdoc_account")]
+        local = fm.get("gmdoc_hash") != digest(body)
+        remote = fm.get("gmdoc_hash") != digest(drive.export(fm["gmdoc_id"]))
         state = {
             (False, False): "in sync",
             (True, False): "local changes (push)",

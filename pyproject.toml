@@ -1,21 +1,51 @@
 [project]
-name = "gdoc"
+name = "gmdoc"
 version = "0.1.0"
 description = "Pull/push Google Docs as Markdown via the Drive API"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [
     { name = "boscoh", email = "apposite@gmail.com" }
 ]
 requires-python = ">=3.12"
+keywords = ["google-docs", "markdown", "drive", "cli", "docs", "gcloud"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Text Processing :: Markup :: Markdown",
+    "Typing :: Typed",
+]
 dependencies = [
     "cyclopts>=4.10.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/boscoh/gmdoc"
+Repository = "https://github.com/boscoh/gmdoc"
+Issues = "https://github.com/boscoh/gmdoc/issues"
+
 [project.scripts]
-gdoc = "gdoc:main"
+gmdoc = "gmdoc:main"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-only-include = ["gdoc.py"]
+only-include = ["gmdoc.py"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "/gmdoc.py",
+    "/pyproject.toml",
+    "/README.md",
+    "/LICENSE",
+]
