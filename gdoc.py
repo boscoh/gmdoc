@@ -174,8 +174,9 @@ class Drive:
         except HttpError as e:
             if e.status == 404:
                 die(
-                    f"doc {doc_id} not found, or not shared with {self.account}.\n"
-                    f"Try --account <email>, or see `{PROG} account`."
+                    f"doc {doc_id} not found, or not shared with {self.account}.",
+                    "Try another account with --account <email>. To list your accounts:",
+                    f"  {PROG} account",
                 )
             die(str(e))
         if info["mimeType"] != GDOC:
@@ -250,10 +251,12 @@ def gcloud_bin() -> str:
         if p.is_file() and os.access(p, os.X_OK):
             return str(p)
     die(
-        "gcloud is not installed. gdoc uses it to log in to Google.\n"
-        "  install:  brew install --cask gcloud-cli\n"
-        "            (other systems: https://cloud.google.com/sdk/docs/install)\n"
-        "  then:     gcloud auth login --enable-gdrive-access"
+        "gcloud is not installed. gdoc uses it to log in to Google.",
+        "Install it:",
+        "  brew install --cask gcloud-cli",
+        "  (other systems: https://cloud.google.com/sdk/docs/install)",
+        "Then log in:",
+        "  gcloud auth login --enable-gdrive-access",
     )
 
 
@@ -270,14 +273,18 @@ def active_account() -> str:
     for a in gcloud_accounts():
         if a.get("status") == "ACTIVE":
             return a["account"]
-    die(f"no active gcloud account; run: {PROG} account <email>")
+    die("no active gcloud account.", "Log in / pick one:", f"  {PROG} account <email>")
 
 
 def gcloud_token(account: str) -> str:
     """Borrow an access token from `gcloud auth login --enable-gdrive-access`."""
     r = gcloud("auth", "print-access-token", account)
     if r.returncode != 0:
-        die(f"{account} is not logged in to gcloud; run: {LOGIN_HINT.format(account)}")
+        die(
+            f"{account} is not logged in to gcloud.",
+            "Log in:",
+            f"  {LOGIN_HINT.format(account)}",
+        )
     return r.stdout.strip()
 
 
@@ -328,8 +335,12 @@ def write_synced(path: Path, drive: Drive, info: dict, body: str) -> None:
 # ------------------------------------------------------------------ helpers
 
 
-def die(msg: str) -> NoReturn:
-    print(f"gdoc: {msg}", file=sys.stderr)
+def die(msg: str, *hints: str) -> NoReturn:
+    """Print an error and exit. Each hint goes on its own indented line after a blank line."""
+    text = f"{PROG}: {msg}"
+    if hints:
+        text += "\n\n" + "\n".join(f"  {h}" if h else "" for h in hints)
+    print(text, file=sys.stderr)
     sys.exit(1)
 
 
@@ -405,7 +416,7 @@ def pull(
     if looks_like_file(target):
         fm, _ = read(Path(target))
         if "gdoc_id" not in fm:
-            die(f"{target} has no gdoc_id front matter; pass a doc id or URL")
+            die(f"{target} has no gdoc_id front matter.", "Pass a doc id or URL instead.")
         doc_id = fm["gdoc_id"]
         account = account or fm.get("gdoc_account")
         path = out or Path(target)
@@ -419,9 +430,15 @@ def pull(
     if path.exists() and not force:
         fm, body = read(path)
         if fm.get("gdoc_id") and fm["gdoc_id"] != doc_id:
-            die(f"{path} is linked to a different doc ({fm['gdoc_id']}); use --force")
+            die(
+                f"{path} is linked to a different doc ({fm['gdoc_id']}).",
+                "Use --force to overwrite it.",
+            )
         if not fm or fm.get("gdoc_hash") != digest(body):
-            die(f"{path} has local changes that would be overwritten; push first or use --force")
+            die(
+                f"{path} has local changes that would be overwritten.",
+                "Push them first, or use --force to discard them.",
+            )
 
     write_synced(path, drive, info, drive.export(doc_id))
     print(f"pulled '{info['name']}' -> {path}")
@@ -447,20 +464,27 @@ def push(
     fm, body = read(file)
     doc_id = doc_id_from(doc) if doc else fm.get("gdoc_id")
     if not doc_id:
-        die(f"{file} has no gdoc_id; pass a doc id/URL or use '{PROG} new'")
+        die(
+            f"{file} has no gdoc_id front matter.",
+            "Pass a doc id or URL, or create a new doc:",
+            f"  {PROG} new {file}",
+        )
 
     drive = connect(account or fm.get("gdoc_account"))
     info = drive.meta(doc_id)
     if not force:
         if fm.get("gdoc_id") != doc_id:
-            die(f"{file} was not pulled from this doc; pushing replaces its whole body. Use --force")
+            die(
+                f"{file} was not pulled from this doc.",
+                "Pushing replaces the doc's whole body. Use --force to do it anyway.",
+            )
         if fm.get("gdoc_hash") == digest(body):
             print("no local changes; nothing to push")
             return
         if digest(drive.export(doc_id)) != fm.get("gdoc_hash"):
             die(
-                f"'{info['name']}' was edited in Google Docs since your last sync.\n"
-                "Save your edits elsewhere and pull, or use --force to overwrite."
+                f"'{info['name']}' was edited in Google Docs since your last sync.",
+                "Save your edits elsewhere and pull, or use --force to overwrite.",
             )
 
     info = drive.update(doc_id, body)
@@ -495,7 +519,10 @@ def new(
     """
     fm, body = read(file)
     if fm.get("gdoc_id") and not force:
-        die(f"{file} is already linked to {fm['gdoc_id']}; use push, or --force to create another")
+        die(
+            f"{file} is already linked to {fm['gdoc_id']}.",
+            f"Use `{PROG} push`, or --force to create another doc.",
+        )
     body_meta: dict[str, object] = {"name": title or file.stem, "mimeType": GDOC}
     if folder:
         body_meta["parents"] = [doc_id_from(folder)]
@@ -589,7 +616,7 @@ def account(
             # Interactive: opens a browser, so don't capture output.
             r = gcloud("auth", "login", email, "--enable-gdrive-access", capture=False)
             if r.returncode != 0:
-                die("login failed")
+                die(f"login failed for {email}.")
         r = gcloud("config", "set", "account", email)
         if r.returncode != 0:
             die(r.stderr.strip())
@@ -599,12 +626,19 @@ def account(
 
     accounts = gcloud_accounts()
     if not accounts:
-        die(f"no gcloud accounts; run: {PROG} account <email>")
+        die("no gcloud accounts.", "Log in:", f"  {PROG} account <email>")
+    width = max(len(a["account"]) for a in accounts)
+    broken = []
     for a in accounts:
         mark = "*" if a.get("status") == "ACTIVE" else " "
         problem = drive_ok(connect(a["account"]))
-        note = f"{problem} (run: {LOGIN_HINT.format(a['account'])})" if problem else "Drive ok"
-        print(f"{mark} {a['account']}  {note}")
+        if problem:
+            broken.append(a["account"])
+        print(f"{mark} {a['account']:<{width}}  {problem or 'Drive ok'}")
+    if broken:
+        print("\nTo fix, log in again:")
+        for acct in broken:
+            print(f"  {LOGIN_HINT.format(acct)}")
 
 
 def main() -> None:
